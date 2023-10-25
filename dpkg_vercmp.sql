@@ -10,7 +10,7 @@
  * PL/pgSQL implementation of order() in libdpkg.
  * Give a weight to the character to order in the version comparison.
  * Param c: an ASCII character.
- * 
+ *
  * NOTE: You can use chr() to acquire it.
  */
 CREATE OR REPLACE FUNCTION dpkg_ver_order(c character)
@@ -20,72 +20,72 @@ CREATE OR REPLACE FUNCTION dpkg_ver_order(c character)
 AS $$
 BEGIN
 	CASE
-	when c between '0' and '9' then
-		return 0;
-	when c between 'a' and 'z' then
-		return ascii(c);
-	when c between 'A' and 'Z' then 
-		return ascii(c);
-	when c = '~' then
-		return (ascii(c) + 256);
-	else
-		return 0;
-	end case;
-end;
+	WHEN c BETWEEN '0' AND '9' THEN
+		RETURN 0;
+	WHEN c BETWEEN 'a' AND 'z' THEN
+		RETURN ascii(c);
+	WHEN c BETWEEN 'A' AND 'Z' THEN
+		RETURN ascii(c);
+	WHEN c = '~' THEN
+		RETURN (ascii(c) + 256);
+	ELSE
+		RETURN 0;
+	END CASE;
+END;
 $$;
 
 /*
  * https://git.dpkg.org/git/dpkg/dpkg.git/tree/lib/dpkg/version.c?id=dfa09efcbaca4bffd41341ced89a827494843abc#n82
  * PL/PGSQL implementation of verrevcmp(char *, char *).
  * See dpkg-version(5) for details.
- * 
+ *
  * Returns int > 0 if a is greater than b.
  * Returns int = 0 if a and b are equal.
  * Returns int < 0 if a is smaller than b.
  */
-CREATE OR REPLACE FUNCTION dpkg_verrevcmp(a varchar(120) default '', b varchar(120) default '')
+CREATE OR REPLACE FUNCTION dpkg_verrevcmp(a varchar(120) DEFAULT '', b varchar(120) DEFAULT '')
  RETURNS integer
- parallel safe
- language plpgsql
-as $$
-declare
-	ch_a char;		-- register to hold a char in string a
-	ch_b char;		-- register to hold a char in string b
-	chseq_a varchar(120);	-- Copy of a
-	chseq_b varchar(120);	-- Copy of b
-	len_a integer;		-- Length of a (to save a few char_length() calls.)
-	len_b integer;		-- Length of b
-	ord_a integer;		-- order of the ch_a
-	ord_b integer;		-- order of the ch_b
-	first_diff integer;	-- first difference
-begin
+ PARALLEL safe
+ LANGUAGE plpgsql
+AS $$
+DECLARE
+	ch_a char;			-- register to hold a char in string a
+	ch_b char;			-- register to hold a char in string b
+	chseq_a varchar(120);		-- Copy of a
+	chseq_b varchar(120);		-- Copy of b
+	len_a integer := 0;		-- Length of a (to save a few char_length() calls.)
+	len_b integer := 0;		-- Length of b
+	ord_a integer := 0;		-- order of the ch_a
+	ord_b integer := 0;		-- order of the ch_b
+	first_diff integer := 0;	-- first difference
+BEGIN
 	/*
 	 * Make sure we do not have empty string in both or either of a and b.
 	 */
 	len_a := char_length(a);
 	len_b := char_length(b);
-	if len_a = 0 and len_b = 0 then
-		return 0;
-	elsif len_a = 0 then
-		return 0 - ascii(b);	-- to be consistent with libdpkg.
-	elsif len_b = 0 then
-		return ascii(a);	-- to be consistent with libdpkg.
-	end if;
+	IF len_a = 0 AND len_b = 0 THEN
+		RETURN 0;
+	ELSIF len_a = 0 THEN
+		RETURN 0 - ascii(b);	-- to be consistent with libdpkg.
+	ELSIF len_b = 0 THEN
+		RETURN ascii(a);	-- to be consistent with libdpkg.
+	END IF;
 	/*
 	 * Now that's empty string's taken care of.
 	 */
 	chseq_a := a;
 	chseq_b := b;
-	ch_a = left(chseq_a, 1);
-	ch_b = left(chseq_b, 1);
-	while ch_a != '' or ch_b != '' loop
+	ch_a := left(chseq_a, 1);
+	ch_b := left(chseq_b, 1);
+	WHILE ch_a != '' or ch_b != '' LOOP
 		first_diff := 0;
 		/*
 		 * https://git.dpkg.org/git/dpkg/dpkg.git/tree/lib/dpkg/version.c?id=dfa09efcbaca4bffd41341ced89a827494843abc#n92
 		 * First loop to deal with alphabets and symbols.
 		 * (Hope we do not have control characters and '\0' in the version strings.)
 		 */
-		while (ch_a != '' and ch_a not between '0' and '9') or (ch_b != '' and ch_b not between '0' and '9') loop
+		WHILE (ch_a != '' AND ch_a NOT BETWEEN '0' AND '9') OR (ch_b != '' AND ch_b NOT BETWEEN '0' AND '9') LOOP
 			/*
 			 * If b is shorter than a, left('', 1) always returns an empty string.
 			 * Calling dpkg_ver_order('') yields 0, which is expected.
@@ -94,9 +94,9 @@ begin
 			ch_b := left(chseq_b, 1);
 			ord_a := dpkg_ver_order(ch_a);
 			ord_b := dpkg_ver_order(ch_b);
-			if ord_a != ord_b then
-				return ord_a - ord_b;
-			end if;
+			IF ord_a != ord_b THEN
+				RETURN ord_a - ord_b;
+			END IF;
 			/*
 			 * https://git.dpkg.org/git/dpkg/dpkg.git/tree/lib/dpkg/version.c?id=dfa09efcbaca4bffd41341ced89a827494843abc#n99 :
 			 * a++;
@@ -104,49 +104,49 @@ begin
 			 * What we are going to do, is to pop the left most character in the both of the strings
 			 * into the ch_a and ch_b register.
 			 */
-			chseq_a = substr(chseq_a, 2);
-			chseq_b = substr(chseq_b, 2);
-			ch_a = left(chseq_a, 1);
-			ch_b = left(chseq_b, 1);
+			chseq_a := substr(chseq_a, 2);
+			chseq_b := substr(chseq_b, 2);
+			ch_a := left(chseq_a, 1);
+			ch_b := left(chseq_b, 1);
 			-- ^ Turned out it worked great :D
-		end loop;
+		END LOOP;
 		/*
 		 * https://git.dpkg.org/git/dpkg/dpkg.git/tree/lib/dpkg/version.c?id=dfa09efcbaca4bffd41341ced89a827494843abc#n102
 		 * Two loops to deal with '0' characters.
 		 */
-		while ch_a = '0' loop
-			chseq_a = substr(chseq_a, 2);
-			ch_a = left(chseq_a, 1);
-		end loop;
-		while ch_b = '0' loop
-			chseq_b = substr(chseq_b, 2);
-			ch_b = left(chseq_b, 1);
-		end loop;
+		WHILE ch_a = '0' LOOP
+			chseq_a := substr(chseq_a, 2);
+			ch_a := left(chseq_a, 1);
+		END LOOP;
+		WHILE ch_b = '0' LOOP
+			chseq_b := substr(chseq_b, 2);
+			ch_b := left(chseq_b, 1);
+		END LOOP;
 		/*
 		 * https://git.dpkg.org/git/dpkg/dpkg.git/tree/lib/dpkg/version.c?id=dfa09efcbaca4bffd41341ced89a827494843abc#n106
 		 * Deal with difference between digits currently in ch_a and ch_b.
 		 */
-		while (ch_a between '0' and '9') and (ch_b between '0' and '9') loop
-			if first_diff = 0 then
-				first_diff = ascii(ch_a) - ascii(ch_b);
-			end if;
-			chseq_a = substr(chseq_a, 2);
-			chseq_b = substr(chseq_b, 2);
-			ch_a = left(chseq_a, 1);
-			ch_b = left(chseq_b, 1);
-		end loop;
-		if (ch_a between '0' and '9') then
-			return 1;
-		end if;
-		if (ch_b between '0' and '9') then
-			return -1;
-		end if;
-		if first_diff != 0 then
-			return first_diff;
-		end if;
-	end loop;
-	return 0;
-end;
+		WHILE (ch_a BETWEEN '0' AND '9') AND (ch_b BETWEEN '0' AND '9') LOOP
+			IF first_diff = 0 THEN
+				first_diff := ascii(ch_a) - ascii(ch_b);
+			END IF;
+			chseq_a := substr(chseq_a, 2);
+			chseq_b := substr(chseq_b, 2);
+			ch_a := left(chseq_a, 1);
+			ch_b := left(chseq_b, 1);
+		END LOOP;
+		IF (ch_a BETWEEN '0' AND '9') THEN
+			RETURN 1;
+		END IF;
+		IF (ch_b BETWEEN '0' AND '9') THEN
+			RETURN -1;
+		END IF;
+		IF first_diff != 0 THEN
+			RETURN first_diff;
+		END IF;
+	END LOOP;
+	RETURN 0;
+END;
 $$;
 
 /*
@@ -161,13 +161,13 @@ CREATE OR REPLACE FUNCTION dpkg_version_compare(verstr_a varchar(120), verstr_b 
  LANGUAGE plpgsql
 AS $$
 DECLARE
-	rc integer = 0;
-	colon_a integer = 0;	-- Position of the colon in the version string.
-	colon_b integer = 0;
-	hypen_a integer = 0;	-- POSITION OF the hypen IN the VERSION string.
-	hypen_b integer = 0;
-	epoch_a integer = 0;
-	epoch_b integer = 0;
+	rc integer := 0;
+	colon_a integer := 0;	-- Position of the colon in the version string.
+	colon_b integer := 0;
+	hypen_a integer := 0;	-- POSITION OF the hypen IN the VERSION string.
+	hypen_b integer := 0;
+	epoch_a integer := 0;
+	epoch_b integer := 0;
 	epoch_a_str varchar(120) DEFAULT '';
 	epoch_b_str varchar(120) DEFAULT '';
 	ver_a varchar(120) DEFAULT '';
@@ -177,8 +177,8 @@ DECLARE
 	 * - Spaces can not be present in the version string.
 	 * - if we feed a '' to dpkg_verrevcomp(), the value is not actually NULL.
 	 */
-	rel_a varchar(120) DEFAULT ' ';
-	rel_b varchar(120) DEFAULT ' ';
+	rel_a varchar(120) DEFAULT '';
+	rel_b varchar(120) DEFAULT '';
 BEGIN
 	IF strpos(verstr_a, ' ') > 0 OR strpos(verstr_b, ' ') > 0 THEN
 		RAISE 'Spaces are not allowed in version strings: either in "%" or "%".', verstr_a, verstr_b;
@@ -203,7 +203,7 @@ BEGIN
 			epoch_b_str := substr(verstr_b, 1, (colon_b - 1));
 			epoch_b := int4(epoch_b_str);
 		END IF;
-		IF epoch_a < 0 OR epoch_b < 0 THEN 
+		IF epoch_a < 0 OR epoch_b < 0 THEN
 			RAISE 'Epoch value is negavive, which is not allowed, either in "%" or "%".', epoch_a_str, epoch_b_str;
 		END IF;
 	EXCEPTION
@@ -256,3 +256,5 @@ BEGIN
 	END IF;
 END;
 $$;
+
+-- vim: ts=8:sw=8:syntax=pgsql:filetype=pgsql:
