@@ -27,9 +27,11 @@ BEGIN
 	WHEN c BETWEEN 'A' AND 'Z' THEN
 		RETURN ascii(c);
 	WHEN c = '~' THEN
-		RETURN (ascii(c) + 256);
-	ELSE
+		RETURN -1;
+	WHEN c = '' THEN
 		RETURN 0;
+	ELSE
+		RETURN (ascii(c) + 256);
 	END CASE;
 END;
 $$;
@@ -64,10 +66,23 @@ BEGIN
 	 */
 	len_a := char_length(a);
 	len_b := char_length(b);
+	ch_a := left(a, 1);
+	ch_b := left(b, 1);
 	IF len_a = 0 AND len_b = 0 THEN
 		RETURN 0;
+	/*
+	 * If a is empty and the first character of b is an alphabet, the C implementation will
+	 * return the corresponding ASCII value of that character.
+	 * If the first character of b is an digit, that means b is greater than a, thus -1 is returned.
+	 * We do not have pointers and most of string functions does not return a NULL string, so we
+	 * have to implement this the other way.
+	 */
+	ELSIF len_a = 0 AND ch_b BETWEEN '0' AND '9' THEN
+		RETURN -1;
 	ELSIF len_a = 0 THEN
 		RETURN 0 - ascii(b);	-- to be consistent with libdpkg.
+	ELSIF len_b = 0 AND ch_a BETWEEN '0' AND '9' THEN
+		RETURN 1;
 	ELSIF len_b = 0 THEN
 		RETURN ascii(a);	-- to be consistent with libdpkg.
 	END IF;
@@ -76,8 +91,6 @@ BEGIN
 	 */
 	chseq_a := a;
 	chseq_b := b;
-	ch_a := left(chseq_a, 1);
-	ch_b := left(chseq_b, 1);
 	WHILE ch_a != '' or ch_b != '' LOOP
 		first_diff := 0;
 		/*
@@ -164,13 +177,13 @@ DECLARE
 	rc integer := 0;
 	colon_a integer := 0;	-- Position of the colon in the version string.
 	colon_b integer := 0;
-	hypen_a integer := 0;	-- POSITION OF the hypen IN the VERSION string.
+	hypen_a integer := 0;	-- Position of the hypen in the version string.
 	hypen_b integer := 0;
-	epoch_a integer := 0;
+	epoch_a integer := 0;	-- Epoch value converted from string contains ONLY digits.
 	epoch_b integer := 0;
 	epoch_a_str varchar(120) DEFAULT '';
 	epoch_b_str varchar(120) DEFAULT '';
-	ver_a varchar(120) DEFAULT '';
+	ver_a varchar(120) DEFAULT '';	-- Main version string.
 	ver_b varchar(120) DEFAULT '';
 	/*
 	 * The reason why we have ' ' as default string is:
